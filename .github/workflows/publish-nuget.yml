@@ -1,0 +1,51 @@
+name: Publish NuGet Package
+
+on:
+  push:
+    branches:
+      - master  # Change to 'main' if your branch is named 'main'
+
+permissions:  # <-- Add this to grant write access
+  contents: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v3
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Restore dependencies
+        run: dotnet restore
+
+      - name: Build the project
+        run: dotnet build --configuration Release --no-restore
+
+      - name: Run Unit Tests
+        run: dotnet test --configuration Release --no-build --verbosity normal
+
+      - name: Get version from csproj
+        id: get_version
+        run: echo "VERSION=$(cat YourProject.csproj | grep -oPm1 '(?<=<Version>)[^<]+')" >> $GITHUB_ENV
+
+      - name: Pack NuGet package
+        run: dotnet pack --configuration Release --no-build --output nupkg
+
+      - name: Publish to NuGet
+        if: success()
+        run: dotnet nuget push nupkg/*.nupkg --api-key ${{ secrets.NUGET_API_KEY }} --source https://api.nuget.org/v3/index.json
+
+      - name: Create GitHub Release
+        if: success()
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: v${{ env.VERSION }}
+          name: Release v${{ env.VERSION }}
+          files: nupkg/*.nupkg
+          draft: false
+          prerelease: false
