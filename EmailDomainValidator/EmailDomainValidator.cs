@@ -9,20 +9,6 @@ namespace EmailDomainValidator
     {
         private static readonly MemoryCache Cache = new MemoryCache(new MemoryCacheOptions());
 
-        private static readonly HashSet<string> DisposableDomains;
-
-        static EmailDomainValidator()
-        {
-            var config = new ConfigurationBuilder()
-                .SetBasePath(Directory.GetCurrentDirectory())
-                .AddJsonFile("appsettings.json")
-                .Build();
-
-            var disposableDomainsSection = config.GetSection("DisposableDomains");
-            var disposableDomainsList = disposableDomainsSection.Get<List<string>>() ?? new List<string>();
-            DisposableDomains = new HashSet<string>(disposableDomainsList);
-        }
-
         public static bool HasValidMxRecords(string email)
         {
             var domain = email.Split('@')[1];
@@ -79,9 +65,6 @@ namespace EmailDomainValidator
             if (!HasValidMxRecords(email))
                 return false;
 
-            if (!IsCustomDisposableEmail(email))
-                return false;
-
             return true;
         }
 
@@ -99,27 +82,22 @@ namespace EmailDomainValidator
             var domain = email.Split('@')[1];
             return _emailBlockList.Value.Contains(domain);
         }
-        
-        public static bool IsCustomDisposableEmail(string email)
-        {
-            if (!DisposableDomains.Any())
-                return true;
-
-            var domain = email.Split('@')[1];
-            return DisposableDomains.Contains(domain);
-        }
 
         private static readonly Lazy<HashSet<string>> _emailBlockList = new Lazy<HashSet<string>>(() =>
         {
             var dir = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "..", "..", "..", "..", "EmailDomainValidator", "disposable_email_blocklist.conf");
             dir = Path.GetFullPath(dir);
 
+            if (Cache.TryGetValue(dir, out object? cachedValue) && cachedValue is HashSet<string> disposableEmails)
+            {
+                return disposableEmails;
+            }
+
             var lines = File.ReadLines(dir)
               .Where(line => !string.IsNullOrWhiteSpace(line) && !line.TrimStart().StartsWith("//"));
-            return new HashSet<string>(lines, StringComparer.OrdinalIgnoreCase);
+            var newDisposableEmails = new HashSet<string>(lines, StringComparer.OrdinalIgnoreCase);
+            Cache.Set(dir, newDisposableEmails, TimeSpan.FromHours(1));
+            return newDisposableEmails;
         });
-
-        private static bool IsBlocklisted(string domain) => _emailBlockList.Value.Contains(domain);
-
     }
 }
