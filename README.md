@@ -89,9 +89,9 @@ This project is licensed under the MIT License. See the [LICENSE](LICENSE) file 
 ---
 
 ### **Links**
-- [NuGet Package](https://www.nuget.org/packages/EmailValidator)
-- [GitHub Repository](https://github.com/yourusername/EmailValidator)
-- [Documentation](https://github.com/yourusername/EmailValidator/wiki)
+- [NuGet Package](https://www.nuget.org/packages/EmailDomainValidator)
+- [GitHub Repository](https://github.com/princejk/EmailDomainValidator)
+- [Documentation](https://github.com/princejk/EmailDomainValidator/wiki)
 
 ---
 
