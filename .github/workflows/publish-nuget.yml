@@ -13,7 +13,7 @@ permissions:
 
 jobs:
   # ✅ Job for PRs: Build and Run Tests (Does NOT publish)
-  test-pr:
+  build-pr:
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
     steps:
@@ -38,7 +38,7 @@ jobs:
   publish:
     if: github.event_name == 'push' || github.event.pull_request.merged == true
     runs-on: ubuntu-latest
-    needs: test-pr  # Ensures tests pass before publishing
+    needs: build-pr  # Ensures tests pass before publishing
     steps:
       - name: Checkout repository
         uses: actions/checkout@v3
