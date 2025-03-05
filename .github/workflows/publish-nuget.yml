@@ -5,6 +5,9 @@ on:
     branches:
       - master  # Change to 'main' if your branch is named 'main'
 
+permissions:  # <-- Add this to grant write access
+  contents: write
+
 jobs:
   publish:
     runs-on: ubuntu-latest
@@ -15,7 +18,7 @@ jobs:
       - name: Setup .NET
         uses: actions/setup-dotnet@v3
         with:
-          dotnet-version: '8.0.x' # Adjust to your .NET version
+          dotnet-version: '8.0.x'
 
       - name: Restore dependencies
         run: dotnet restore
@@ -35,7 +38,7 @@ jobs:
 
       - name: Publish to NuGet
         if: success()
-        run: dotnet nuget push nupkg/*.nupkg --api-key oy2gf4iw3jskdjbcbnlad7wyzq2wjljexmfvyxa66jxk3q --source https://api.nuget.org/v3/index.json
+        run: dotnet nuget push nupkg/*.nupkg --api-key ${{ secrets.NUGET_API_KEY }} --source https://api.nuget.org/v3/index.json
 
       - name: Create GitHub Release
         if: success()
