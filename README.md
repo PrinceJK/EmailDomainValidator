@@ -1,5 +1,5 @@
-### **Email Validator - A Robust .NET Library for Email Validation**
-The **Email Validator** is a powerful and easy-to-use .NET library designed to validate email addresses with precision and efficiency. It ensures that email addresses are not only syntactically correct but also checks for disposable or temporary email domains and verifies the existence of MX (Mail Exchange) records for the domain. With built-in support for caching, asynchronous operations, and third-party API integration, this library is perfect for applications that require reliable email validation.
+### **Email Validator - A Robust .NET Library for Email Domain Validation**
+The **Email Domain Validator** is a powerful and easy-to-use .NET library designed to validate email addresses with precision and efficiency. It ensures that email addresses are not only syntactically correct but also checks for disposable or temporary email domains and verifies the existence of MX (Mail Exchange) records for the domain. With built-in support for caching, asynchronous operations, and third-party API integration, this library is perfect for applications that require reliable email validation.
 
 ---
 
@@ -35,17 +35,17 @@ The **Email Validator** is a powerful and easy-to-use .NET library designed to v
 ### **Installation**
 Install the **Email Validator** package via NuGet:
 ```bash
-dotnet add package EmailValidator
+dotnet add package EmailDomainValidator
 ```
 
 ---
 
 ### **Quick Start**
 ```csharp
-using EmailValidator;
+using EmailDomainValidator;
 
 var email = "test@example.com";
-if (await EmailValidator.ValidateEmailAsync(email))
+if (await EmailDomainValidator.ValidateEmailAsync(email))
 {
     Console.WriteLine("Email is valid.");
 }
@@ -89,9 +89,9 @@ This project is licensed under the MIT License. See the [LICENSE](LICENSE) file 
 ---
 
 ### **Links**
-- [NuGet Package](https://www.nuget.org/packages/EmailValidator)
-- [GitHub Repository](https://github.com/yourusername/EmailValidator)
-- [Documentation](https://github.com/yourusername/EmailValidator/wiki)
+- [NuGet Package](https://www.nuget.org/packages/EmailDomainValidator)
+- [GitHub Repository](https://github.com/princejk/EmailDomainValidator)
+- [Documentation](https://github.com/princejk/EmailDomainValidator/wiki)
 
 ---
 
