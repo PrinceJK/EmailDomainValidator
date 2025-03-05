@@ -1,10 +1,70 @@
-﻿using System.Net;
+﻿using Microsoft.Extensions.Caching.Memory;
+using Microsoft.Extensions.Configuration;
+using System.Net;
 using System.Text.RegularExpressions;
 
 namespace EmailDomainValidator
 {
     public class EmailDomainValidator
     {
+        private static readonly MemoryCache Cache = new MemoryCache(new MemoryCacheOptions());
+
+        private static readonly HashSet<string> DisposableDomains;
+
+        static EmailDomainValidator()
+        {
+            var config = new ConfigurationBuilder()
+                .SetBasePath(Directory.GetCurrentDirectory())
+                .AddJsonFile("appsettings.json")
+                .Build();
+
+            var disposableDomainsSection = config.GetSection("DisposableDomains");
+            var disposableDomainsList = disposableDomainsSection.Get<List<string>>() ?? new List<string>();
+            DisposableDomains = new HashSet<string>(disposableDomainsList);
+        }
+
+        public static bool HasValidMxRecords(string email)
+        {
+            var domain = email.Split('@')[1];
+            if (Cache.TryGetValue(domain, out bool hasMxRecords))
+            {
+                return hasMxRecords;
+            }
+
+            try
+            {
+                var mxRecords = Dns.GetHostEntry(domain).AddressList;
+                hasMxRecords = mxRecords.Any();
+                Cache.Set(domain, hasMxRecords, TimeSpan.FromHours(1));
+                return hasMxRecords;
+            }
+            catch
+            {
+                return false;
+            }
+        }
+
+        public static async Task<bool> HasValidMxRecordsAsync(string email)
+        {
+            var domain = email.Split('@')[1];
+            if (Cache.TryGetValue(domain, out bool hasMxRecords))
+            {
+                return hasMxRecords;
+            }
+
+            try
+            {
+                var hostEntry = await Dns.GetHostEntryAsync(domain);
+                hasMxRecords = hostEntry.AddressList.Any();
+                Cache.Set(domain, hasMxRecords, TimeSpan.FromHours(1));
+                return hasMxRecords;
+            }
+            catch
+            {
+                return false;
+            }
+        }
+
         public static bool ValidateEmail(string email)
         {
             if (string.IsNullOrWhiteSpace(email))
@@ -17,6 +77,9 @@ namespace EmailDomainValidator
                 return false;
 
             if (!HasValidMxRecords(email))
+                return false;
+
+            if (!IsCustomDisposableEmail(email))
                 return false;
 
             return true;
@@ -36,24 +99,18 @@ namespace EmailDomainValidator
             var domain = email.Split('@')[1];
             return _emailBlockList.Value.Contains(domain);
         }
-
-        public static bool HasValidMxRecords(string email)
+        
+        public static bool IsCustomDisposableEmail(string email)
         {
+            if (!DisposableDomains.Any())
+                return true;
+
             var domain = email.Split('@')[1];
-            try
-            {
-                var mxRecords = Dns.GetHostEntry(domain).AddressList;
-                return mxRecords.Any();
-            }
-            catch
-            {
-                return false;
-            }
+            return DisposableDomains.Contains(domain);
         }
 
         private static readonly Lazy<HashSet<string>> _emailBlockList = new Lazy<HashSet<string>>(() =>
         {
-            //var dir = $"{AppDomain.CurrentDomain.BaseDirectory}\\disposable_email_blocklist.conf";
             var dir = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "..", "..", "..", "..", "EmailDomainValidator", "disposable_email_blocklist.conf");
             dir = Path.GetFullPath(dir);
 
