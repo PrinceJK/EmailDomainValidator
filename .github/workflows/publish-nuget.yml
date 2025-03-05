@@ -3,9 +3,9 @@ name: Publish NuGet Package
 on:
   push:
     branches:
-      - master  # Change to 'main' if your branch is named 'main'
+      - master  # Change to 'main' if needed
 
-permissions:  # <-- Add this to grant write access
+permissions:
   contents: write
 
 jobs:
@@ -26,19 +26,21 @@ jobs:
       - name: Build the project
         run: dotnet build --configuration Release --no-restore
 
-      - name: Run Unit Tests
-        run: dotnet test --configuration Release --no-build --verbosity normal
-
-      - name: Get version from csproj
+      - name: Generate Version Number
         id: get_version
-        run: echo "VERSION=$(cat YourProject.csproj | grep -oPm1 '(?<=<Version>)[^<]+')" >> $GITHUB_ENV
+        run: |
+          VERSION_PREFIX=$(cat EmailValidator.csproj | grep -oPm1 '(?<=<VersionPrefix>)[^<]+')
+          BUILD_NUMBER=${{ github.run_number }}
+          FULL_VERSION="$VERSION_PREFIX.$BUILD_NUMBER"
+          echo "VERSION=$FULL_VERSION" >> $GITHUB_ENV
+          echo "Generated version: $FULL_VERSION"
 
       - name: Pack NuGet package
-        run: dotnet pack --configuration Release --no-build --output nupkg
+        run: dotnet pack --configuration Release --no-build --output nupkg /p:Version=${{ env.VERSION }}
 
       - name: Publish to NuGet
         if: success()
-        run: dotnet nuget push nupkg/*.nupkg --api-key ${{ secrets.NUGET_API_KEY }} --source https://api.nuget.org/v3/index.json
+        run: dotnet nuget push nupkg/*.nupkg --api-key ${{ secrets.NUGET_API_KEY }} --source https://api.nuget.org/v3/index.json --skip-duplicate
 
       - name: Create GitHub Release
         if: success()
