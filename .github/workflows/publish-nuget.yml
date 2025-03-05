@@ -35,7 +35,7 @@ jobs:
 
       - name: Publish to NuGet
         if: success()
-        run: dotnet nuget push nupkg/*.nupkg --api-key ${{ secrets.NUGET_API_KEY }} --source https://api.nuget.org/v3/index.json
+        run: dotnet nuget push nupkg/*.nupkg --api-key oy2k6c6emjhnd7ieu3nauucszqfdtsae7iiiakwfqxyiqy --source https://api.nuget.org/v3/index.json
 
       - name: Create GitHub Release
         if: success()
