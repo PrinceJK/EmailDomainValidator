@@ -1,15 +1,20 @@
-name: Publish NuGet Package
+name: CI/CD Pipeline
 
 on:
   push:
     branches:
-      - master  # Change to 'main' if needed
+      - master  # Runs on push to master (publishes package)
+  pull_request:
+    branches:
+      - master  # Runs on PRs to master (build + test only)
 
 permissions:
   contents: write
 
 jobs:
-  publish:
+  # ✅ Job for PRs: Build and Run Tests (Does NOT publish)
+  build-pr:
+    if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
@@ -25,6 +30,32 @@ jobs:
 
       - name: Build the project
         run: dotnet build --configuration Release --no-restore
+
+      - name: Run Unit Tests
+        run: dotnet test --configuration Release --no-build --verbosity normal
+
+  # ✅ Job for `master`: Build, Test, and Publish NuGet Package
+  publish:
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    needs: build-pr  # Ensures tests pass before publishing
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v3
+        with:
+          dotnet-version: '9.0.x'
+
+      - name: Restore dependencies
+        run: dotnet restore
+
+      - name: Build the project
+        run: dotnet build --configuration Release --no-restore
+
+      - name: Run Unit Tests
+        run: dotnet test --configuration Release --no-build --verbosity normal
 
       - name: Generate Version Number
         id: get_version
