@@ -1,8 +1,9 @@
 name: Publish NuGet Package
 
 on:
-  release:
-    types: [created]
+  push:
+    branches:
+      - master  # Change to 'main' if your branch is named 'main'
 
 jobs:
   publish:
@@ -14,7 +15,7 @@ jobs:
       - name: Setup .NET
         uses: actions/setup-dotnet@v3
         with:
-          dotnet-version: '8.0.x'
+          dotnet-version: '8.0.x' # Adjust to your .NET version
 
       - name: Restore dependencies
         run: dotnet restore
@@ -25,9 +26,23 @@ jobs:
       - name: Run Unit Tests
         run: dotnet test --configuration Release --no-build --verbosity normal
 
+      - name: Get version from csproj
+        id: get_version
+        run: echo "VERSION=$(cat YourProject.csproj | grep -oPm1 '(?<=<Version>)[^<]+')" >> $GITHUB_ENV
+
       - name: Pack NuGet package
         run: dotnet pack --configuration Release --no-build --output nupkg
 
       - name: Publish to NuGet
-        if: success() # Only publish if tests pass
+        if: success()
         run: dotnet nuget push nupkg/*.nupkg --api-key ${{ secrets.NUGET_API_KEY }} --source https://api.nuget.org/v3/index.json
+
+      - name: Create GitHub Release
+        if: success()
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: v${{ env.VERSION }}
+          name: Release v${{ env.VERSION }}
+          files: nupkg/*.nupkg
+          draft: false
+          prerelease: false
