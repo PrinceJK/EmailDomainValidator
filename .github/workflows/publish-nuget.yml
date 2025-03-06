@@ -12,7 +12,7 @@ permissions:
   contents: write
 
 jobs:
-  # ✅ Job for PRs: Build and Run Tests (Does NOT publish)
+  # ✅ Job for PRs: Build and Run Tests (Does NOT publish) 
   build-pr:
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
