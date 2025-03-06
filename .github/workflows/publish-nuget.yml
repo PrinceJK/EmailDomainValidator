@@ -36,7 +36,7 @@ jobs:
 
   # ✅ Job for `master`: Build, Test, and Publish NuGet Package After Merge
   publish:
-    if: github.event_name == 'push' && github.ref == 'refs/heads/master'
+    if: github.ref == 'refs/heads/master'
     runs-on: ubuntu-latest
     needs: build-pr  # Ensures tests pass before publishing
     steps:
