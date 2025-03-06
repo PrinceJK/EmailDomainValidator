@@ -12,9 +12,9 @@ permissions:
   contents: write
 
 jobs:
-  # ✅ Job for PRs: Build and Run Tests (Does NOT publish) 
+  # ✅ Job for PRs: Build and Run Tests (Does NOT publish)
   build-pr:
-    if: github.event_name == 'pull_request'
+    if: github.event_name == 'pull_request' || github.event_name == 'push'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
@@ -36,7 +36,7 @@ jobs:
 
   # ✅ Job for `master`: Build, Test, and Publish NuGet Package After Merge
   publish:
-    if: github.ref == 'refs/heads/master'
+    if: github.event_name == 'push' && github.ref == 'refs/heads/master'
     runs-on: ubuntu-latest
     needs: build-pr  # Ensures tests pass before publishing
     steps:
