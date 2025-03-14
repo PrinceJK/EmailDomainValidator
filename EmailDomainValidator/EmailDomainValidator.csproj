@@ -19,4 +19,10 @@
     <PackageReference Include="Microsoft.Extensions.Configuration.Json" Version="9.0.2" />
 	<None Include="..\README.md" Pack="true" PackagePath="\" />
   </ItemGroup>
+
+  <ItemGroup>
+    <None Update="disposable_email_blocklist.conf">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+  </ItemGroup>
 </Project>
