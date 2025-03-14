@@ -1,6 +1,7 @@
 ﻿using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Configuration;
 using System.Net;
+using System.Reflection;
 using System.Text.RegularExpressions;
 
 namespace EmailDomainValidator
@@ -85,19 +86,35 @@ namespace EmailDomainValidator
 
         private static readonly Lazy<HashSet<string>> _emailBlockList = new Lazy<HashSet<string>>(() =>
         {
-            var dir = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "..", "..", "..", "..", "EmailDomainValidator", "disposable_email_blocklist.conf");
-            dir = Path.GetFullPath(dir);
+            var assembly = Assembly.GetExecutingAssembly();
+            var resourceName = "EmailDomainValidator.disposable_email_blocklist.conf";
 
-            if (Cache.TryGetValue(dir, out object? cachedValue) && cachedValue is HashSet<string> disposableEmails)
+            if (Cache.TryGetValue(resourceName, out object? cachedValue) && cachedValue is HashSet<string> disposableEmails)
             {
                 return disposableEmails;
             }
 
-            var lines = File.ReadLines(dir)
-              .Where(line => !string.IsNullOrWhiteSpace(line) && !line.TrimStart().StartsWith("//"));
-            var newDisposableEmails = new HashSet<string>(lines, StringComparer.OrdinalIgnoreCase);
-            Cache.Set(dir, newDisposableEmails, TimeSpan.FromHours(1));
-            return newDisposableEmails;
+            using (var stream = assembly.GetManifestResourceStream(resourceName))
+            {
+                if (stream == null)
+                {
+                    throw new FileNotFoundException($"Embedded resource '{resourceName}' not found.");
+                }
+
+                using (var reader = new StreamReader(stream))
+                {
+                    var blocklist = reader.ReadToEnd();
+
+                    var lines = blocklist.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries)
+                                         .Where(line => !string.IsNullOrWhiteSpace(line) && !line.TrimStart().StartsWith("//"));
+
+                    var newDisposableEmails = new HashSet<string>(lines, StringComparer.OrdinalIgnoreCase);
+
+                    Cache.Set(resourceName, newDisposableEmails, TimeSpan.FromHours(1));
+
+                    return newDisposableEmails;
+                }
+            }
         });
     }
 }
