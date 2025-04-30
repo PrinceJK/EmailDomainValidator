@@ -57,20 +57,6 @@ else
 
 ---
 
-### **Configuration**
-Configure the list of disposable email domains in `appsettings.json`:
-```json
-{
-    "DisposableDomains": [
-        "mailinator.com",
-        "10minutemail.com",
-        "guerrillamail.com"
-    ]
-}
-```
-
----
-
 ### **Dependencies**
 - **Microsoft.Extensions.Caching.Memory**: For caching MX record lookups.
 - **System.Net.Http**: For making HTTP requests to third-party APIs.
