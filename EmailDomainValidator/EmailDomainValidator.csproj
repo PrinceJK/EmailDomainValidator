@@ -4,7 +4,7 @@
 	<ImplicitUsings>enable</ImplicitUsings>
 	<Nullable>enable</Nullable>
 	<PackageId>EmailDomainValidator</PackageId>
-	<VersionPrefix>1.0.0</VersionPrefix>
+	<VersionPrefix>2.0.0</VersionPrefix>
 	<Authors>John Kehinde</Authors>
 	<Description>A lightweight .NET library for email validation: format checking, disposable domain detection (5,400+ blocked domains), and real DNS MX record verification. Supports dependency injection, async, rich ValidationResult, configurable caching, and runtime blocklist updates.</Description>
 	<PackageTags>email;validation;disposable-email;mx-records;dns;email-validator;anti-spam</PackageTags>
