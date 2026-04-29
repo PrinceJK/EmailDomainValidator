@@ -1,84 +1,176 @@
-### **Email Validator - A Robust .NET Library for Email Domain Validation**
-The **Email Domain Validator** is a powerful and easy-to-use .NET library designed to validate email addresses with precision and efficiency. It ensures that email addresses are not only syntactically correct but also checks for disposable or temporary email domains and verifies the existence of MX (Mail Exchange) records for the domain. With built-in support for caching, asynchronous operations, and third-party API integration, this library is perfect for applications that require reliable email validation.
+﻿# EmailDomainValidator
+
+A lightweight, free .NET library for validating email addresses — checking format, detecting disposable domains, and verifying real MX records.
 
 ---
 
-### **Key Features**
-- **Email Format Validation**: Validates email addresses using a robust regular expression to ensure they follow the correct format (e.g., `user@domain.com`).
-- **Disposable Email Detection**: Detects and blocks emails from known disposable or temporary email services (e.g., Mailinator, 10MinuteMail) using a configurable list of domains.
-- **Third-Party API Integration**: Seamlessly integrates with external APIs (e.g., Abstract API, Mailboxlayer) for enhanced disposable email detection and additional validation features.
-- **MX Record Verification**: Checks if the domain of the email address has valid MX records, ensuring the domain can receive emails.
-- **Caching for Performance**: Implements caching for MX record lookups to improve performance and reduce redundant DNS queries.
-- **Asynchronous Support**: Provides asynchronous methods for non-blocking email validation, making it ideal for high-performance applications.
-- **Customizable Configuration**: Allows users to configure the list of disposable email domains and other settings via a configuration file or programmatically.
+## Key Features
+
+- **Email Format Validation** — regex-based format check (`user@domain.com`)
+- **Disposable Email Detection** — blocks known throwaway domains (5,400+ entries, embedded at build time)
+- **Real MX Record Verification** — uses actual DNS MX queries via [DnsClient.NET](https://github.com/MichaCo/DnsClient.NET), not just A-record resolution
+- **Rich Validation Results** — `ValidationResult` tells you *why* an email failed (`InvalidFormat`, `DisposableDomain`, `NoMxRecords`)
+- **Dependency Injection Support** — register via `services.AddEmailDomainValidator()` or use the static API
+- **Configurable Options** — tune cache TTL and blocklist update URL via `EmailValidatorOptions`
+- **Blocklist Update Mechanism** — refresh the in-memory blocklist at runtime from any URL, no restart required
+- **Async Support** — every method has an async counterpart
+- **MX Result Caching** — DNS lookups are cached (default: 1 hour) to avoid redundant queries
 
 ---
 
-### **Why Use Email Validator?**
-- **Improve Data Quality**: Ensure that only valid and non-disposable email addresses are accepted in your application.
-- **Enhance Security**: Reduce the risk of spam, fraud, and abuse by blocking temporary or disposable email addresses.
-- **Boost Performance**: Optimize validation with caching and asynchronous operations for faster processing.
-- **Easy Integration**: Simple API design and seamless integration with .NET applications.
-- **Flexible and Extensible**: Customize validation rules and integrate with third-party services for advanced use cases.
+## Installation
 
----
-
-### **Use Cases**
-- **User Registration**: Validate email addresses during user sign-up to prevent fake or disposable accounts.
-- **Newsletter Subscriptions**: Ensure only valid email addresses are added to your mailing list.
-- **E-commerce**: Verify customer email addresses during checkout to reduce fraud and improve communication.
-- **Lead Generation**: Validate email addresses collected from forms to maintain a high-quality lead database.
-- **Data Cleaning**: Clean and validate email addresses in existing databases or CSV files.
-
----
-
-### **Installation**
-Install the **Email Validator** package via NuGet:
 ```bash
 dotnet add package EmailDomainValidator
 ```
 
 ---
 
-### **Quick Start**
+## Quick Start
+
+### Static API
+
 ```csharp
 using EmailDomainValidator;
 
-var email = "test@example.com";
-if (await EmailDomainValidator.ValidateEmailAsync(email))
+// Simple bool check
+bool isValid = EmailDomainValidator.ValidateEmail("user@example.com");
+
+// Async
+bool isValid = await EmailDomainValidator.ValidateEmailAsync("user@example.com");
+
+// Detailed result — know exactly why validation failed
+ValidationResult result = EmailDomainValidator.ValidateEmailWithResult("user@mailinator.com");
+// result.IsValid        -> false
+// result.FailureReason  -> ValidationFailureReason.DisposableDomain
+
+// Implicit bool conversion
+if (!result) Console.WriteLine($"Rejected: {result.FailureReason}");
+```
+
+### Dependency Injection (ASP.NET Core / Generic Host)
+
+```csharp
+// Program.cs
+builder.Services.AddEmailDomainValidator();
+
+// Or with custom options
+builder.Services.AddEmailDomainValidator(options =>
 {
-    Console.WriteLine("Email is valid.");
-}
-else
+    options.CacheTtl = TimeSpan.FromMinutes(30);
+});
+```
+
+```csharp
+// In a controller, service, etc.
+public class RegistrationService(IEmailDomainValidator validator)
 {
-    Console.WriteLine("Email is invalid or disposable.");
+    public async Task RegisterAsync(string email)
+    {
+        var result = await validator.ValidateEmailWithResultAsync(email);
+        if (!result)
+            throw new ArgumentException($"Invalid email: {result.FailureReason}");
+        // ...
+    }
 }
 ```
 
 ---
 
-### **Dependencies**
-- **Microsoft.Extensions.Caching.Memory**: For caching MX record lookups.
-- **System.Net.Http**: For making HTTP requests to third-party APIs.
-- **Microsoft.Extensions.Configuration**: For loading configuration settings.
+## API Reference
+
+### `EmailDomainValidator` (static class) / `IEmailDomainValidator` (interface)
+
+| Method | Returns | Description |
+|---|---|---|
+| `IsValidFormat(email)` | `bool` | Regex format check |
+| `IsDisposableEmail(email)` | `bool` | Checks against embedded blocklist |
+| `HasValidMxRecords(email)` | `bool` | Real DNS MX query (sync) |
+| `HasValidMxRecordsAsync(email)` | `Task<bool>` | Real DNS MX query (async) |
+| `ValidateEmail(email)` | `bool` | All checks combined (sync) |
+| `ValidateEmailAsync(email)` | `Task<bool>` | All checks combined (async) |
+| `ValidateEmailWithResult(email)` | `ValidationResult` | All checks, with failure reason (sync) |
+| `ValidateEmailWithResultAsync(email)` | `Task<ValidationResult>` | All checks, with failure reason (async) |
+| `UpdateBlocklistAsync(url)` | `Task` | Fetch a fresh blocklist from a URL at runtime |
+
+### `ValidationResult`
+
+```csharp
+result.IsValid        // bool
+result.FailureReason  // ValidationFailureReason enum
+(bool)result          // implicit conversion
+result.ToString()     // "Valid" or "Invalid: DisposableDomain"
+```
+
+`ValidationFailureReason` values: `None`, `InvalidFormat`, `DisposableDomain`, `NoMxRecords`
+
+### `EmailValidatorOptions`
+
+```csharp
+new EmailValidatorOptions
+{
+    CacheTtl = TimeSpan.FromHours(1),   // how long MX results are cached
+    BlocklistUpdateUrl = null            // optional URL for runtime blocklist refresh
+}
+```
 
 ---
 
-### **Contributing**
-Contributions are welcome! If you’d like to contribute, please fork the repository and submit a pull request. For major changes, open an issue first to discuss your ideas.
+## Disposable Email Blocklist
+
+The embedded blocklist ships with **5,400+ known disposable domains** and is sourced from the community-maintained
+[disposable-email-domains](https://github.com/disposable-email-domains/disposable-email-domains) project.
+
+Since new disposable providers appear regularly, the library provides a runtime update mechanism so your application
+can refresh the list without a redeployment:
+
+```csharp
+// Refresh at startup or on a schedule
+await EmailDomainValidator.UpdateBlocklistAsync(
+    "https://raw.githubusercontent.com/disposable-email-domains/disposable-email-domains/master/disposable_email_blocklist.conf"
+);
+```
+
+The new list is swapped in atomically — no downtime, no restart.
 
 ---
 
-### **License**
-This project is licensed under the MIT License. See the [LICENSE](LICENSE) file for details.
+## Dependencies
+
+| Package | Purpose |
+|---|---|
+| `DnsClient` | Real DNS MX record queries |
+| `Microsoft.Extensions.Caching.Memory` | MX result caching |
+| `Microsoft.Extensions.DependencyInjection` | DI registration support |
+| `Microsoft.Extensions.Http` | `HttpClient` for blocklist updates |
 
 ---
 
-### **Links**
+## Use Cases
+
+- **User Registration** — block fake/throwaway accounts at sign-up
+- **Newsletter Subscriptions** — keep mailing lists clean
+- **E-commerce** — reduce fraud and improve delivery rates
+- **Lead Generation** — validate form submissions before they hit your CRM
+- **Data Cleaning** — validate existing email datasets in bulk
+
+---
+
+## Contributing
+
+Contributions are welcome. Please fork the repository, make your changes on a feature branch, and open a pull request.
+For significant changes, open an issue first.
+
+---
+
+## License
+
+MIT — see [LICENSE](LICENSE) for details.
+
+---
+
+## Links
+
 - [NuGet Package](https://www.nuget.org/packages/EmailDomainValidator)
-- [GitHub Repository](https://github.com/princejk/EmailDomainValidator)
-- [Documentation](https://github.com/princejk/EmailDomainValidator/wiki)
-
----
-
-This description is professional, concise, and highlights the value of your package. It’s designed to attract developers and businesses looking for a reliable email validation solution. Let me know if you’d like to tweak it further! 🚀
+- [GitHub Repository](https://github.com/PrinceJK/EmailDomainValidator)
+- [Upstream Blocklist](https://github.com/disposable-email-domains/disposable-email-domains)
