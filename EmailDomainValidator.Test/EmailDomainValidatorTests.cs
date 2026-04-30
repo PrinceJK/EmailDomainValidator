@@ -1,6 +1,6 @@
 using Microsoft.Extensions.DependencyInjection;
 using System.Net;
-using Validator = EmailDomainValidator.EmailDomainValidator;
+using Validator = EmailDomainValidator.EmailValidator;
 
 namespace EmailDomainValidator.Test;
 

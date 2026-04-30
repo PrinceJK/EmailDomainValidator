@@ -34,13 +34,13 @@ dotnet add package EmailDomainValidator
 using EmailDomainValidator;
 
 // Simple bool check
-bool isValid = EmailDomainValidator.ValidateEmail("user@example.com");
+bool isValid = EmailValidator.ValidateEmail("user@example.com");
 
 // Async
-bool isValid = await EmailDomainValidator.ValidateEmailAsync("user@example.com");
+bool isValid = await EmailValidator.ValidateEmailAsync("user@example.com");
 
 // Detailed result — know exactly why validation failed
-ValidationResult result = EmailDomainValidator.ValidateEmailWithResult("user@mailinator.com");
+ValidationResult result = EmailValidator.ValidateEmailWithResult("user@mailinator.com");
 // result.IsValid        -> false
 // result.FailureReason  -> ValidationFailureReason.DisposableDomain
 
@@ -79,7 +79,7 @@ public class RegistrationService(IEmailDomainValidator validator)
 
 ## API Reference
 
-### `EmailDomainValidator` (static class) / `IEmailDomainValidator` (interface)
+### `EmailValidator` (static class) / `IEmailDomainValidator` (interface)
 
 | Method | Returns | Description |
 |---|---|---|
@@ -126,7 +126,7 @@ can refresh the list without a redeployment:
 
 ```csharp
 // Refresh at startup or on a schedule
-await EmailDomainValidator.UpdateBlocklistAsync(
+await EmailValidator.UpdateBlocklistAsync(
     "https://raw.githubusercontent.com/disposable-email-domains/disposable-email-domains/master/disposable_email_blocklist.conf"
 );
 ```
