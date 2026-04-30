@@ -5,7 +5,7 @@ using System.Text.RegularExpressions;
 
 namespace EmailDomainValidator
 {
-    public class EmailDomainValidator
+    public class EmailValidator
     {
         private static readonly MemoryCache Cache = new MemoryCache(new MemoryCacheOptions());
         private static readonly LookupClient DnsLookup = new LookupClient();
