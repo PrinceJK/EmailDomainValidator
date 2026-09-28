@@ -93,7 +93,7 @@ flowchart TD
 ## Key Features
 
 - **Format & Syntax Validation**: RFC 5322 compliant, with support for Internationalized Domain Names (IDN/Punycode like `.xn--p1ai`) and checks against consecutive or misplaced dots.
-- **5,400+ Embedded Disposable Domains**: Compiled directly into the binary with zero external runtime file dependencies.
+- **9,100+ Embedded Disposable Domains**: Compiled directly into the binary with zero external runtime file dependencies.
 - **Subdomain Evasion Protection**: Automatically identifies and blocks throwaway subdomains (e.g. `user@sub.mailinator.com`).
 - **Domain Typo Detection**: Detects mistyped domains (`gamil.com`, `hotmial.com`, `outlok.com`) and suggests corrections against 50+ popular providers.
 - **Free Webmail & Consumer Detection**: Identify consumer addresses (`@gmail.com`, `@yahoo.com`, `@outlook.com`) to enforce business/work emails in B2B applications.
@@ -412,7 +412,7 @@ builder.Services.AddEmailDomainValidator(options =>
 
 ## Disposable Blocklist & Updates
 
-The library ships with **5,400+ precompiled disposable domains** embedded directly in the binary from [disposable-email-domains](https://github.com/disposable-email-domains/disposable-email-domains).
+The library ships with **9,100+ precompiled disposable domains** embedded directly in the binary from [disposable-email-domains](https://github.com/disposable-email-domains/disposable-email-domains).
 
 Since new temporary email services appear regularly, you can refresh the blocklist at runtime without redeploying:
 
