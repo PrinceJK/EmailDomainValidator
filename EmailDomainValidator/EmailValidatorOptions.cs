@@ -53,5 +53,46 @@ namespace EmailDomainValidator
         /// when downloading blocklists (SSRF protection). Set to true only in internal test environments.
         /// </summary>
         public bool AllowInsecureBlocklistUrls { get; set; } = false;
+
+        /// <summary>
+        /// When true (default), attempts to detect typos for popular domains (e.g. gamil.com -> gmail.com).
+        /// Suggested correction is available on <see cref="ValidationResult.SuggestedEmail"/>.
+        /// </summary>
+        public bool EnableTypoSuggestions { get; set; } = true;
+
+        /// <summary>
+        /// Maximum Damerau-Levenshtein edit distance to trigger a typo suggestion. Defaults to 2.
+        /// </summary>
+        public int MaxTypoDistance { get; set; } = 2;
+
+        /// <summary>
+        /// When false, rejects free consumer webmail providers (e.g. gmail.com, yahoo.com, outlook.com).
+        /// Defaults to true. Useful for B2B SaaS applications requiring business/work email addresses.
+        /// </summary>
+        public bool AllowFreeWebmail { get; set; } = true;
+
+        /// <summary>
+        /// When false, rejects generic/role-based mailboxes (e.g. admin@, support@, info@, sales@, billing@).
+        /// Defaults to true.
+        /// </summary>
+        public bool AllowRoleBasedEmails { get; set; } = true;
+
+        /// <summary>
+        /// Optional custom set of blocked domains (e.g. competitor domains or known abuse sources).
+        /// Checked case-insensitively.
+        /// </summary>
+        public ISet<string>? BlockedDomains { get; set; }
+
+        /// <summary>
+        /// Optional whitelist of permitted domains. If populated, only emails belonging to these domains will pass.
+        /// Checked case-insensitively.
+        /// </summary>
+        public ISet<string>? AllowedDomains { get; set; }
+
+        /// <summary>
+        /// Optional custom set of blocked Top-Level Domains (e.g. [".xyz", ".top", ".buzz"]).
+        /// Checked case-insensitively.
+        /// </summary>
+        public ISet<string>? BlockedTlds { get; set; }
     }
 }

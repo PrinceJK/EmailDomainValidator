@@ -6,10 +6,10 @@
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
     <NoWarn>$(NoWarn);1591</NoWarn>
     <PackageId>EmailDomainValidator</PackageId>
-    <VersionPrefix>2.0.0</VersionPrefix>
+    <VersionPrefix>2.1.0</VersionPrefix>
     <Authors>John Kehinde</Authors>
-    <Description>A lightweight .NET library for email validation: format checking, disposable domain detection (5,400+ blocked domains), and real DNS MX record verification. Supports dependency injection, async, rich ValidationResult, configurable caching, and runtime blocklist updates.</Description>
-    <PackageTags>email;validation;disposable-email;mx-records;dns;email-validator;anti-spam</PackageTags>
+    <Description>A high-performance .NET library for complete email validation: format checking, disposable domain detection (9,100+ blocked domains), typo suggestions, B2B corporate filters (free webmail and role-based detection), DataAnnotation attributes, batch streaming, and real DNS MX record verification.</Description>
+    <PackageTags>email;validation;disposable-email;mx-records;dns;email-validator;anti-spam;typo-detection;b2b;dataannotations;batch-validation</PackageTags>
     <PackageReadmeFile>README.md</PackageReadmeFile>
     <PackageIcon>icon.png</PackageIcon>
   </PropertyGroup>
