@@ -4,7 +4,9 @@ using System.Collections.Frozen;
 using System.Globalization;
 using System.Net;
 using System.Reflection;
+using System.Runtime.CompilerServices;
 using System.Text.RegularExpressions;
+using System.Threading.Channels;
 
 namespace EmailDomainValidator
 {
@@ -22,6 +24,43 @@ namespace EmailDomainValidator
         private volatile FrozenSet<string> _blocklist;
 
         private static readonly IdnMapping Idn = new();
+
+        private static readonly FrozenSet<string> FreeWebmailDomains = new[]
+        {
+            "gmail.com", "googlemail.com", "yahoo.com", "ymail.com", "rocketmail.com",
+            "hotmail.com", "outlook.com", "live.com", "msn.com",
+            "icloud.com", "me.com", "mac.com",
+            "aol.com", "aim.com",
+            "protonmail.com", "proton.me",
+            "zoho.com", "zohomail.com",
+            "mail.com", "email.com", "usa.com",
+            "gmx.com", "gmx.net", "gmx.de",
+            "yandex.com", "yandex.ru", "ya.ru",
+            "fastmail.com",
+            "comcast.net", "sbcglobal.net", "att.net", "verizon.net", "cox.net", "bellsouth.net",
+            "charter.net", "earthlink.net",
+            "t-online.de", "web.de", "freenet.de",
+            "orange.fr", "free.fr", "sfr.fr", "laposte.net", "wanadoo.fr",
+            "libero.it", "virgilio.it", "alice.it",
+            "uol.com.br", "bol.com.br", "terra.com.br",
+            "mail.ru", "inbox.ru", "list.ru", "bk.ru",
+            "qq.com", "163.com", "126.com", "sina.com",
+            "rediffmail.com"
+        }.ToFrozenSet(StringComparer.OrdinalIgnoreCase);
+
+        private static readonly FrozenSet<string> RoleBasedPrefixes = new[]
+        {
+            "admin", "administrator", "support", "help", "info", "information",
+            "contact", "contact-us", "contactus", "sales", "billing", "invoices",
+            "accounts", "accounting", "finance", "payment", "payments",
+            "office", "frontdesk", "reception", "press", "media", "pr",
+            "security", "privacy", "compliance", "legal",
+            "marketing", "advertising", "promo",
+            "jobs", "careers", "hr", "recruiting", "talent",
+            "postmaster", "hostmaster", "webmaster", "root", "abuse",
+            "noreply", "no-reply", "no_reply", "do-not-reply", "donotreply",
+            "team", "general", "hello", "inquiry", "inquiries", "feedback", "dev", "tech"
+        }.ToFrozenSet(StringComparer.OrdinalIgnoreCase);
 
         [GeneratedRegex(
             @"^[a-zA-Z0-9_%+-]+(\.[a-zA-Z0-9_%+-]+)*@[a-zA-Z0-9-]+(\.[a-zA-Z0-9-]+)*\.[a-zA-Z0-9-]{2,}$",
@@ -90,6 +129,39 @@ namespace EmailDomainValidator
             }
 
             return false;
+        }
+
+        // ── Free Webmail & Role-Based ────────────────────────────────────────
+
+        public bool IsFreeWebmail(string email)
+        {
+            if (!TryGetDomain(email, out var domain))
+                return false;
+            return FreeWebmailDomains.Contains(domain);
+        }
+
+        public bool IsRoleBasedEmail(string email)
+        {
+            if (string.IsNullOrWhiteSpace(email)) return false;
+            int atIndex = email.LastIndexOf('@');
+            if (atIndex <= 0) return false;
+
+            var local = email[..atIndex].ToLowerInvariant().Trim();
+            int plusIndex = local.IndexOf('+');
+            if (plusIndex > 0) local = local[..plusIndex];
+
+            if (RoleBasedPrefixes.Contains(local))
+                return true;
+
+            var normalized = local.Replace(".", "").Replace("-", "").Replace("_", "");
+            return RoleBasedPrefixes.Contains(normalized);
+        }
+
+        public string? SuggestDomainCorrection(string email)
+        {
+            if (!TryGetDomain(email, out var domain))
+                return null;
+            return TypoDetector.SuggestDomain(domain, _options.MaxTypoDistance);
         }
 
         // ── MX Records ───────────────────────────────────────────────────────
@@ -175,20 +247,14 @@ namespace EmailDomainValidator
         /// </summary>
         public bool ValidateEmail(string email)
         {
-            if (string.IsNullOrWhiteSpace(email)) return false;
-            if (!IsValidFormat(email)) return false;
-            if (IsDisposableEmail(email)) return false;
-            if (!HasValidMxRecords(email)) return false;
-            return true;
+            var result = ValidateEmailWithResult(email);
+            return result.IsValid;
         }
 
         public async Task<bool> ValidateEmailAsync(string email, CancellationToken cancellationToken = default)
         {
-            if (string.IsNullOrWhiteSpace(email)) return false;
-            if (!IsValidFormat(email)) return false;
-            if (IsDisposableEmail(email)) return false;
-            if (!await HasValidMxRecordsAsync(email, cancellationToken)) return false;
-            return true;
+            var result = await ValidateEmailWithResultAsync(email, cancellationToken);
+            return result.IsValid;
         }
 
         // ── Validate (ValidationResult) ──────────────────────────────────────
@@ -196,23 +262,195 @@ namespace EmailDomainValidator
         public ValidationResult ValidateEmailWithResult(string email)
         {
             if (string.IsNullOrWhiteSpace(email) || !IsValidFormat(email))
-                return ValidationResult.Fail(ValidationFailureReason.InvalidFormat);
-            if (IsDisposableEmail(email))
-                return ValidationResult.Fail(ValidationFailureReason.DisposableDomain);
+                return ValidationResult.Fail(ValidationFailureReason.InvalidFormat, email);
+
+            if (!TryGetDomain(email, out var domain))
+                return ValidationResult.Fail(ValidationFailureReason.InvalidFormat, email);
+
+            bool isDisposable = IsDisposableEmail(email);
+            bool isFreeWebmail = IsFreeWebmail(email);
+            bool isRoleBased = IsRoleBasedEmail(email);
+
+            string? suggestedDomain = null;
+            string? suggestedEmail = null;
+            if (_options.EnableTypoSuggestions)
+            {
+                suggestedDomain = TypoDetector.SuggestDomain(domain, _options.MaxTypoDistance);
+                if (suggestedDomain != null)
+                {
+                    int atIndex = email.LastIndexOf('@');
+                    var local = atIndex > 0 ? email[..atIndex] : "";
+                    suggestedEmail = $"{local}@{suggestedDomain}";
+                }
+            }
+
+            // Check blocked TLDs
+            if (_options.BlockedTlds != null && _options.BlockedTlds.Any(tld => domain.EndsWith(tld, StringComparison.OrdinalIgnoreCase)))
+            {
+                return ValidationResult.Fail(ValidationFailureReason.BlockedTld, email, suggestedEmail, suggestedDomain, isDisposable, isFreeWebmail, isRoleBased);
+            }
+
+            // Check custom blocked domains
+            if (_options.BlockedDomains != null && _options.BlockedDomains.Contains(domain))
+            {
+                return ValidationResult.Fail(ValidationFailureReason.BlockedDomain, email, suggestedEmail, suggestedDomain, isDisposable, isFreeWebmail, isRoleBased);
+            }
+
+            // Check custom allowed domains (whitelist)
+            if (_options.AllowedDomains != null && _options.AllowedDomains.Count > 0 && !_options.AllowedDomains.Contains(domain))
+            {
+                return ValidationResult.Fail(ValidationFailureReason.DomainNotAllowed, email, suggestedEmail, suggestedDomain, isDisposable, isFreeWebmail, isRoleBased);
+            }
+
+            // Check disposable
+            if (isDisposable)
+            {
+                return ValidationResult.Fail(ValidationFailureReason.DisposableDomain, email, suggestedEmail, suggestedDomain, isDisposable, isFreeWebmail, isRoleBased);
+            }
+
+            // Check role-based restriction
+            if (!_options.AllowRoleBasedEmails && isRoleBased)
+            {
+                return ValidationResult.Fail(ValidationFailureReason.RoleBasedEmail, email, suggestedEmail, suggestedDomain, isDisposable, isFreeWebmail, isRoleBased);
+            }
+
+            // Check free webmail restriction
+            if (!_options.AllowFreeWebmail && isFreeWebmail)
+            {
+                return ValidationResult.Fail(ValidationFailureReason.FreeWebmailDomain, email, suggestedEmail, suggestedDomain, isDisposable, isFreeWebmail, isRoleBased);
+            }
+
+            // Check MX records
             if (!HasValidMxRecords(email))
-                return ValidationResult.Fail(ValidationFailureReason.NoMxRecords);
-            return ValidationResult.Success();
+            {
+                return ValidationResult.Fail(ValidationFailureReason.NoMxRecords, email, suggestedEmail, suggestedDomain, isDisposable, isFreeWebmail, isRoleBased);
+            }
+
+            return ValidationResult.Success(email, suggestedEmail, suggestedDomain, isFreeWebmail, isRoleBased);
         }
 
         public async Task<ValidationResult> ValidateEmailWithResultAsync(string email, CancellationToken cancellationToken = default)
         {
             if (string.IsNullOrWhiteSpace(email) || !IsValidFormat(email))
-                return ValidationResult.Fail(ValidationFailureReason.InvalidFormat);
-            if (IsDisposableEmail(email))
-                return ValidationResult.Fail(ValidationFailureReason.DisposableDomain);
+                return ValidationResult.Fail(ValidationFailureReason.InvalidFormat, email);
+
+            if (!TryGetDomain(email, out var domain))
+                return ValidationResult.Fail(ValidationFailureReason.InvalidFormat, email);
+
+            bool isDisposable = IsDisposableEmail(email);
+            bool isFreeWebmail = IsFreeWebmail(email);
+            bool isRoleBased = IsRoleBasedEmail(email);
+
+            string? suggestedDomain = null;
+            string? suggestedEmail = null;
+            if (_options.EnableTypoSuggestions)
+            {
+                suggestedDomain = TypoDetector.SuggestDomain(domain, _options.MaxTypoDistance);
+                if (suggestedDomain != null)
+                {
+                    int atIndex = email.LastIndexOf('@');
+                    var local = atIndex > 0 ? email[..atIndex] : "";
+                    suggestedEmail = $"{local}@{suggestedDomain}";
+                }
+            }
+
+            // Check blocked TLDs
+            if (_options.BlockedTlds != null && _options.BlockedTlds.Any(tld => domain.EndsWith(tld, StringComparison.OrdinalIgnoreCase)))
+            {
+                return ValidationResult.Fail(ValidationFailureReason.BlockedTld, email, suggestedEmail, suggestedDomain, isDisposable, isFreeWebmail, isRoleBased);
+            }
+
+            // Check custom blocked domains
+            if (_options.BlockedDomains != null && _options.BlockedDomains.Contains(domain))
+            {
+                return ValidationResult.Fail(ValidationFailureReason.BlockedDomain, email, suggestedEmail, suggestedDomain, isDisposable, isFreeWebmail, isRoleBased);
+            }
+
+            // Check custom allowed domains (whitelist)
+            if (_options.AllowedDomains != null && _options.AllowedDomains.Count > 0 && !_options.AllowedDomains.Contains(domain))
+            {
+                return ValidationResult.Fail(ValidationFailureReason.DomainNotAllowed, email, suggestedEmail, suggestedDomain, isDisposable, isFreeWebmail, isRoleBased);
+            }
+
+            // Check disposable
+            if (isDisposable)
+            {
+                return ValidationResult.Fail(ValidationFailureReason.DisposableDomain, email, suggestedEmail, suggestedDomain, isDisposable, isFreeWebmail, isRoleBased);
+            }
+
+            // Check role-based restriction
+            if (!_options.AllowRoleBasedEmails && isRoleBased)
+            {
+                return ValidationResult.Fail(ValidationFailureReason.RoleBasedEmail, email, suggestedEmail, suggestedDomain, isDisposable, isFreeWebmail, isRoleBased);
+            }
+
+            // Check free webmail restriction
+            if (!_options.AllowFreeWebmail && isFreeWebmail)
+            {
+                return ValidationResult.Fail(ValidationFailureReason.FreeWebmailDomain, email, suggestedEmail, suggestedDomain, isDisposable, isFreeWebmail, isRoleBased);
+            }
+
+            // Check MX records
             if (!await HasValidMxRecordsAsync(email, cancellationToken))
-                return ValidationResult.Fail(ValidationFailureReason.NoMxRecords);
-            return ValidationResult.Success();
+            {
+                return ValidationResult.Fail(ValidationFailureReason.NoMxRecords, email, suggestedEmail, suggestedDomain, isDisposable, isFreeWebmail, isRoleBased);
+            }
+
+            return ValidationResult.Success(email, suggestedEmail, suggestedDomain, isFreeWebmail, isRoleBased);
+        }
+
+        // ── Batch Validation ─────────────────────────────────────────────────
+
+        public async IAsyncEnumerable<ValidationResult> ValidateBatchAsync(
+            IEnumerable<string> emails,
+            int maxConcurrency = 10,
+            [EnumeratorCancellation] CancellationToken cancellationToken = default)
+        {
+            if (emails == null) yield break;
+
+            var channel = Channel.CreateBounded<ValidationResult>(new BoundedChannelOptions(Math.Max(1, maxConcurrency) * 2)
+            {
+                SingleWriter = false,
+                SingleReader = true
+            });
+
+            var parallelTask = Task.Run(async () =>
+            {
+                try
+                {
+                    var parallelOptions = new ParallelOptions
+                    {
+                        MaxDegreeOfParallelism = Math.Max(1, maxConcurrency),
+                        CancellationToken = cancellationToken
+                    };
+
+                    await Parallel.ForEachAsync(emails, parallelOptions, async (email, ct) =>
+                    {
+                        var result = await ValidateEmailWithResultAsync(email, ct);
+                        await channel.Writer.WriteAsync(result, ct);
+                    });
+                }
+                catch (OperationCanceledException) { }
+                catch (Exception ex)
+                {
+                    channel.Writer.TryComplete(ex);
+                    return;
+                }
+                finally
+                {
+                    channel.Writer.TryComplete();
+                }
+            }, cancellationToken);
+
+            while (await channel.Reader.WaitToReadAsync(cancellationToken))
+            {
+                while (channel.Reader.TryRead(out var item))
+                {
+                    yield return item;
+                }
+            }
+
+            await parallelTask;
         }
 
         // ── Blocklist update ─────────────────────────────────────────────────

@@ -1,6 +1,8 @@
 using Microsoft.Extensions.DependencyInjection;
 using System.Net;
 using Validator = EmailDomainValidator.EmailValidator;
+using DataAnnotationsValidator = System.ComponentModel.DataAnnotations.Validator;
+using DataAnnotationsValidationResult = System.ComponentModel.DataAnnotations.ValidationResult;
 
 namespace EmailDomainValidator.Test;
 
@@ -461,6 +463,472 @@ public class DependencyInjectionTests
 
         var svc = sp.GetRequiredService<IEmailDomainValidator>();
         Assert.NotNull(svc);
+    }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Typo Detector unit tests
+// ═══════════════════════════════════════════════════════════════════════════
+public class TypoDetectorTests
+{
+    [Theory]
+    [InlineData("gamil.com", "gmail.com")]
+    [InlineData("gmial.com", "gmail.com")]
+    [InlineData("hotmial.com", "hotmail.com")]
+    [InlineData("outlok.com", "outlook.com")]
+    [InlineData("yaho.com", "yahoo.com")]
+    [InlineData("iclud.com", "icloud.com")]
+    [InlineData("prtonmail.com", "protonmail.com")]
+    public void SuggestDomain_CommonTypos_ReturnsExpectedSuggestion(string input, string expected)
+    {
+        var suggestion = TypoDetector.SuggestDomain(input);
+        Assert.Equal(expected, suggestion);
+    }
+
+    [Theory]
+    [InlineData("gmail.com")]
+    [InlineData("yahoo.com")]
+    [InlineData("outlook.com")]
+    public void SuggestDomain_ExactMatch_ReturnsNull(string domain)
+    {
+        var suggestion = TypoDetector.SuggestDomain(domain);
+        Assert.Null(suggestion);
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("   ")]
+    public void SuggestDomain_NullOrWhitespace_ReturnsNull(string? domain)
+    {
+        var suggestion = TypoDetector.SuggestDomain(domain!);
+        Assert.Null(suggestion);
+    }
+
+    [Fact]
+    public void SuggestDomain_CompletelyDifferentDomain_ReturnsNull()
+    {
+        var suggestion = TypoDetector.SuggestDomain("randomunrelatedcompany12345.org");
+        Assert.Null(suggestion);
+    }
+
+    [Fact]
+    public void SuggestDomainCorrection_ViaService_ReturnsSuggestion()
+    {
+        var svc = new EmailDomainValidatorService();
+        var suggestion = svc.SuggestDomainCorrection("user@gamil.com");
+        Assert.Equal("gmail.com", suggestion);
+    }
+
+    [Fact]
+    public void SuggestDomainCorrection_ViaStaticValidator_ReturnsSuggestion()
+    {
+        var suggestion = Validator.SuggestDomainCorrection("user@gamil.com");
+        Assert.Equal("gmail.com", suggestion);
+    }
+
+    [Fact]
+    public void ValidateEmailWithResult_WithTypoSuggestionsEnabled_PopulatesSuggestion()
+    {
+        var opts = new EmailValidatorOptions { EnableTypoSuggestions = true };
+        var svc = new EmailDomainValidatorService(opts);
+        var result = svc.ValidateEmailWithResult("alex@gamil.com");
+
+        Assert.Equal("gmail.com", result.SuggestedDomain);
+        Assert.Equal("alex@gmail.com", result.SuggestedEmail);
+    }
+
+    [Fact]
+    public async Task ValidateEmailWithResultAsync_WithTypoSuggestionsEnabled_PopulatesSuggestion()
+    {
+        var opts = new EmailValidatorOptions { EnableTypoSuggestions = true };
+        var svc = new EmailDomainValidatorService(opts);
+        var result = await svc.ValidateEmailWithResultAsync("alex@hotmial.com");
+
+        Assert.Equal("hotmail.com", result.SuggestedDomain);
+        Assert.Equal("alex@hotmail.com", result.SuggestedEmail);
+    }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Free Webmail detection unit tests
+// ═══════════════════════════════════════════════════════════════════════════
+public class FreeWebmailTests
+{
+    private readonly EmailDomainValidatorService _sut = new EmailDomainValidatorService();
+
+    [Theory]
+    [InlineData("user@gmail.com", true)]
+    [InlineData("user@googlemail.com", true)]
+    [InlineData("user@yahoo.com", true)]
+    [InlineData("user@hotmail.com", true)]
+    [InlineData("user@outlook.com", true)]
+    [InlineData("user@live.com", true)]
+    [InlineData("user@icloud.com", true)]
+    [InlineData("user@proton.me", true)]
+    [InlineData("user@protonmail.com", true)]
+    [InlineData("user@aol.com", true)]
+    [InlineData("user@zoho.com", true)]
+    [InlineData("user@yandex.com", true)]
+    [InlineData("user@corporate-enterprise.com", false)]
+    [InlineData("user@custom-domain.org", false)]
+    public void IsFreeWebmail_ReturnsExpected(string email, bool expected)
+    {
+        Assert.Equal(expected, _sut.IsFreeWebmail(email));
+        Assert.Equal(expected, Validator.IsFreeWebmail(email));
+    }
+
+    [Theory]
+    [InlineData("notanemail")]
+    [InlineData("")]
+    [InlineData("@")]
+    public void IsFreeWebmail_MalformedEmail_ReturnsFalse(string email)
+    {
+        Assert.False(_sut.IsFreeWebmail(email));
+        Assert.False(Validator.IsFreeWebmail(email));
+    }
+
+    [Fact]
+    public void ValidateEmailWithResult_AllowFreeWebmailFalse_FailsValidation()
+    {
+        var opts = new EmailValidatorOptions { AllowFreeWebmail = false };
+        var svc = new EmailDomainValidatorService(opts);
+
+        var result = svc.ValidateEmailWithResult("alex@gmail.com");
+        Assert.False(result.IsValid);
+        Assert.Equal(ValidationFailureReason.FreeWebmailDomain, result.FailureReason);
+        Assert.True(result.IsFreeWebmail);
+    }
+
+    [Fact]
+    public void ValidateEmailWithResult_AllowFreeWebmailTrue_DoesNotFailOnFreeWebmail()
+    {
+        var opts = new EmailValidatorOptions { AllowFreeWebmail = true };
+        var svc = new EmailDomainValidatorService(opts);
+
+        // mailinator is disposable so it fails on disposable, but IsFreeWebmail is false
+        var result = svc.ValidateEmailWithResult("alex@mailinator.com");
+        Assert.False(result.IsFreeWebmail);
+        Assert.Equal(ValidationFailureReason.DisposableDomain, result.FailureReason);
+    }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Role-Based email detection unit tests
+// ═══════════════════════════════════════════════════════════════════════════
+public class RoleBasedEmailTests
+{
+    private readonly EmailDomainValidatorService _sut = new EmailDomainValidatorService();
+
+    [Theory]
+    [InlineData("admin@example.com", true)]
+    [InlineData("administrator@example.com", true)]
+    [InlineData("support@example.com", true)]
+    [InlineData("billing@example.com", true)]
+    [InlineData("info@example.com", true)]
+    [InlineData("contact@example.com", true)]
+    [InlineData("sales@example.com", true)]
+    [InlineData("help@example.com", true)]
+    [InlineData("security@example.com", true)]
+    [InlineData("jobs@example.com", true)]
+    [InlineData("careers@example.com", true)]
+    [InlineData("no-reply@example.com", true)]
+    [InlineData("noreply@example.com", true)]
+    [InlineData("postmaster@example.com", true)]
+    [InlineData("hostmaster@example.com", true)]
+    [InlineData("webmaster@example.com", true)]
+    [InlineData("john.doe@example.com", false)]
+    [InlineData("alice.smith@example.com", false)]
+    public void IsRoleBasedEmail_ReturnsExpected(string email, bool expected)
+    {
+        Assert.Equal(expected, _sut.IsRoleBasedEmail(email));
+        Assert.Equal(expected, Validator.IsRoleBasedEmail(email));
+    }
+
+    [Fact]
+    public void IsRoleBasedEmail_PlusAddressedRole_ReturnsTrue()
+    {
+        Assert.True(_sut.IsRoleBasedEmail("support+ticket123@example.com"));
+        Assert.True(_sut.IsRoleBasedEmail("billing+april@example.com"));
+    }
+
+    [Theory]
+    [InlineData("notanemail")]
+    [InlineData("")]
+    [InlineData("@")]
+    public void IsRoleBasedEmail_MalformedEmail_ReturnsFalse(string email)
+    {
+        Assert.False(_sut.IsRoleBasedEmail(email));
+        Assert.False(Validator.IsRoleBasedEmail(email));
+    }
+
+    [Fact]
+    public void ValidateEmailWithResult_AllowRoleBasedFalse_FailsValidation()
+    {
+        var opts = new EmailValidatorOptions { AllowRoleBasedEmails = false };
+        var svc = new EmailDomainValidatorService(opts);
+
+        var result = svc.ValidateEmailWithResult("admin@example.com");
+        Assert.False(result.IsValid);
+        Assert.Equal(ValidationFailureReason.RoleBasedEmail, result.FailureReason);
+        Assert.True(result.IsRoleBased);
+    }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Custom Whitelist, Blacklist, and TLD filtering unit tests
+// ═══════════════════════════════════════════════════════════════════════════
+public class ListFilteringTests
+{
+    [Fact]
+    public void BlockedDomains_RejectsTargetDomain()
+    {
+        var opts = new EmailValidatorOptions
+        {
+            BlockedDomains = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "competitor.com", "banned.net" }
+        };
+        var svc = new EmailDomainValidatorService(opts);
+
+        var result = svc.ValidateEmailWithResult("ceo@competitor.com");
+        Assert.False(result.IsValid);
+        Assert.Equal(ValidationFailureReason.BlockedDomain, result.FailureReason);
+    }
+
+    [Fact]
+    public void AllowedDomains_RejectsNonWhitelistedDomains()
+    {
+        var opts = new EmailValidatorOptions
+        {
+            AllowedDomains = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "mycompany.com", "partner.org" }
+        };
+        var svc = new EmailDomainValidatorService(opts);
+
+        var result = svc.ValidateEmailWithResult("user@external.com");
+        Assert.False(result.IsValid);
+        Assert.Equal(ValidationFailureReason.DomainNotAllowed, result.FailureReason);
+    }
+
+    [Theory]
+    [InlineData("user@phishing.xyz", true)]
+    [InlineData("user@malware.top", true)]
+    [InlineData("user@scam.click", true)]
+    [InlineData("user@safecompany.com", false)]
+    public void BlockedTlds_FiltersConfiguredTlds(string email, bool shouldBeBlocked)
+    {
+        var opts = new EmailValidatorOptions
+        {
+            BlockedTlds = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { ".xyz", ".top", ".click" }
+        };
+        var svc = new EmailDomainValidatorService(opts);
+
+        var result = svc.ValidateEmailWithResult(email);
+        if (shouldBeBlocked)
+        {
+            Assert.False(result.IsValid);
+            Assert.Equal(ValidationFailureReason.BlockedTld, result.FailureReason);
+        }
+        else
+        {
+            // Allowed TLD - should not fail due to BlockedTld
+            Assert.NotEqual(ValidationFailureReason.BlockedTld, result.FailureReason);
+        }
+    }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// DataAnnotations [ValidateEmailDomain] unit tests
+// ═══════════════════════════════════════════════════════════════════════════
+public class ValidateEmailDomainAttributeTests
+{
+    private class RegistrationModel
+    {
+        [ValidateEmailDomain(RequireMx = false)]
+        public string? Email { get; set; }
+    }
+
+    private class CorporateRegistrationModel
+    {
+        [ValidateEmailDomain(RequireMx = false, AllowFreeWebmail = false, AllowRoleBased = false)]
+        public string? Email { get; set; }
+    }
+
+    private class CustomMessageModel
+    {
+        [ValidateEmailDomain(RequireMx = false, ErrorMessage = "Custom email domain error")]
+        public string? Email { get; set; }
+    }
+
+    private static bool TryValidate(object model, out List<DataAnnotationsValidationResult> results, IServiceProvider? serviceProvider = null)
+    {
+        var context = new System.ComponentModel.DataAnnotations.ValidationContext(model, serviceProvider, items: null);
+        results = new List<DataAnnotationsValidationResult>();
+        return DataAnnotationsValidator.TryValidateObject(model, context, results, validateAllProperties: true);
+    }
+
+    [Fact]
+    public void Attribute_ValidEmail_PassesValidation()
+    {
+        var model = new RegistrationModel { Email = "user@example.com" };
+        var isValid = TryValidate(model, out var results);
+        Assert.True(isValid);
+        Assert.Empty(results);
+    }
+
+    [Fact]
+    public void Attribute_NullOrEmptyEmail_PassesValidation_StandardConvention()
+    {
+        var modelNull = new RegistrationModel { Email = null };
+        Assert.True(TryValidate(modelNull, out var resultsNull));
+        Assert.Empty(resultsNull);
+
+        var modelEmpty = new RegistrationModel { Email = "" };
+        Assert.True(TryValidate(modelEmpty, out var resultsEmpty));
+        Assert.Empty(resultsEmpty);
+    }
+
+    [Fact]
+    public void Attribute_InvalidFormat_FailsValidation()
+    {
+        var model = new RegistrationModel { Email = "not-an-email" };
+        var isValid = TryValidate(model, out var results);
+        Assert.False(isValid);
+        Assert.Single(results);
+        Assert.Contains("invalid email format", results[0].ErrorMessage, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void Attribute_DisposableDomain_FailsValidation()
+    {
+        var model = new RegistrationModel { Email = "user@mailinator.com" };
+        var isValid = TryValidate(model, out var results);
+        Assert.False(isValid);
+        Assert.Single(results);
+        Assert.Contains("Disposable", results[0].ErrorMessage);
+    }
+
+    [Fact]
+    public void Attribute_CorporateModel_RejectsFreeWebmail()
+    {
+        var model = new CorporateRegistrationModel { Email = "user@gmail.com" };
+        var isValid = TryValidate(model, out var results);
+        Assert.False(isValid);
+        Assert.Single(results);
+        Assert.Contains("work or corporate email", results[0].ErrorMessage, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void Attribute_CorporateModel_RejectsRoleBasedEmail()
+    {
+        var model = new CorporateRegistrationModel { Email = "admin@mycompany.com" };
+        var isValid = TryValidate(model, out var results);
+        Assert.False(isValid);
+        Assert.Single(results);
+        Assert.Contains("role-based", results[0].ErrorMessage, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void Attribute_CustomMessage_IsRespected()
+    {
+        var model = new CustomMessageModel { Email = "user@mailinator.com" };
+        var isValid = TryValidate(model, out var results);
+        Assert.False(isValid);
+        Assert.Single(results);
+        Assert.Equal("Custom email domain error", results[0].ErrorMessage);
+    }
+
+    [Fact]
+    public void Attribute_WithDependencyInjectionContext_UsesResolvedService()
+    {
+        var sp = new ServiceCollection()
+            .AddEmailDomainValidator()
+            .BuildServiceProvider();
+
+        var model = new RegistrationModel { Email = "user@mailinator.com" };
+        var isValid = TryValidate(model, out var results, serviceProvider: sp);
+        Assert.False(isValid);
+        Assert.Single(results);
+        Assert.Contains("Disposable", results[0].ErrorMessage);
+    }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// High-Throughput Batch Validation unit tests
+// ═══════════════════════════════════════════════════════════════════════════
+public class BatchValidationTests
+{
+    [Fact]
+    public async Task ValidateBatchAsync_Service_ProcessesAllEmails()
+    {
+        var emails = new[]
+        {
+            "invalid-email-format",
+            "user1@mailinator.com",
+            "user2@mailinator.com",
+            "bad@nodomain",
+            "user3@mailinator.com"
+        };
+
+        var svc = new EmailDomainValidatorService();
+        var results = new List<ValidationResult>();
+
+        await foreach (var res in svc.ValidateBatchAsync(emails, maxConcurrency: 3))
+        {
+            results.Add(res);
+        }
+
+        Assert.Equal(5, results.Count);
+        Assert.All(results, r => Assert.False(r.IsValid));
+    }
+
+    [Fact]
+    public async Task ValidateBatchAsync_StaticValidator_ProcessesAllEmails()
+    {
+        var emails = new[]
+        {
+            "bad1",
+            "bad2",
+            "test@mailinator.com"
+        };
+
+        var results = new List<ValidationResult>();
+        await foreach (var res in Validator.ValidateBatchAsync(emails, maxConcurrency: 2))
+        {
+            results.Add(res);
+        }
+
+        Assert.Equal(3, results.Count);
+    }
+
+    [Fact]
+    public async Task ValidateBatchAsync_NullEmails_YieldsEmpty()
+    {
+        var svc = new EmailDomainValidatorService();
+        var results = new List<ValidationResult>();
+
+        await foreach (var res in svc.ValidateBatchAsync(null!, maxConcurrency: 2))
+        {
+            results.Add(res);
+        }
+
+        Assert.Empty(results);
+    }
+
+    [Fact]
+    public async Task ValidateBatchAsync_SupportsCancellation()
+    {
+        var emails = Enumerable.Range(1, 100).Select(i => $"user{i}@mailinator.com").ToArray();
+        var svc = new EmailDomainValidatorService();
+
+        using var cts = new CancellationTokenSource();
+        cts.Cancel(); // Cancel immediately
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(async () =>
+        {
+            await foreach (var res in svc.ValidateBatchAsync(emails, maxConcurrency: 2, cancellationToken: cts.Token))
+            {
+                // no-op
+            }
+        });
     }
 }
 

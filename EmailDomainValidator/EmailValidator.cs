@@ -17,6 +17,18 @@ namespace EmailDomainValidator
         public static bool IsDisposableEmail(string email) =>
             DefaultService.Value.IsDisposableEmail(email);
 
+        /// <summary>Checks whether the email domain belongs to a free consumer webmail provider (e.g. gmail.com, yahoo.com).</summary>
+        public static bool IsFreeWebmail(string email) =>
+            DefaultService.Value.IsFreeWebmail(email);
+
+        /// <summary>Checks whether the email address has a generic/role-based mailbox prefix (e.g. admin@, support@, info@).</summary>
+        public static bool IsRoleBasedEmail(string email) =>
+            DefaultService.Value.IsRoleBasedEmail(email);
+
+        /// <summary>Attempts to find a suggested domain correction for common typos (e.g. user@gamil.com -> user@gmail.com).</summary>
+        public static string? SuggestDomainCorrection(string email) =>
+            DefaultService.Value.SuggestDomainCorrection(email);
+
         /// <summary>Checks whether the email domain has resolvable MX records (sync).</summary>
         public static bool HasValidMxRecords(string email) =>
             DefaultService.Value.HasValidMxRecords(email);
@@ -40,6 +52,13 @@ namespace EmailDomainValidator
         /// <summary>Runs all validation checks asynchronously and returns a detailed result.</summary>
         public static Task<ValidationResult> ValidateEmailWithResultAsync(string email, CancellationToken cancellationToken = default) =>
             DefaultService.Value.ValidateEmailWithResultAsync(email, cancellationToken);
+
+        /// <summary>Validates a batch of email addresses concurrently with streaming results.</summary>
+        public static IAsyncEnumerable<ValidationResult> ValidateBatchAsync(
+            IEnumerable<string> emails,
+            int maxConcurrency = 10,
+            CancellationToken cancellationToken = default) =>
+            DefaultService.Value.ValidateBatchAsync(emails, maxConcurrency, cancellationToken);
 
         /// <summary>
         /// Fetches a fresh blocklist from <paramref name="url"/> and replaces the in-memory set.
