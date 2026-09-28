@@ -30,5 +30,28 @@ namespace EmailDomainValidator
         /// Defaults to false for backwards compatibility.
         /// </summary>
         public bool RejectNullMx { get; set; } = false;
+
+        /// <summary>
+        /// Maximum number of DNS lookup entries to hold in memory cache to prevent unbounded memory growth (Cache DoS).
+        /// Defaults to 50,000 entries.
+        /// </summary>
+        public int CacheSizeLimit { get; set; } = 50_000;
+
+        /// <summary>
+        /// Timeout for DNS queries. Defaults to 3 seconds to mitigate threadpool starvation.
+        /// </summary>
+        public TimeSpan DnsTimeout { get; set; } = TimeSpan.FromSeconds(3);
+
+        /// <summary>
+        /// Maximum response size in bytes allowed when updating the blocklist via HTTP.
+        /// Defaults to 10 MB to prevent memory bombs.
+        /// </summary>
+        public long MaxBlocklistSizeBytes { get; set; } = 10 * 1024 * 1024;
+
+        /// <summary>
+        /// When false (default), enforces HTTPS and blocks loopback, private, and cloud metadata IP addresses
+        /// when downloading blocklists (SSRF protection). Set to true only in internal test environments.
+        /// </summary>
+        public bool AllowInsecureBlocklistUrls { get; set; } = false;
     }
 }

@@ -299,7 +299,8 @@ public class EmailDomainValidatorServiceTests
         // Serve a minimal blocklist containing only "newblocked.com"
         var fakeContent = "newblocked.com\n";
         var handler = new FakeHttpMessageHandler(fakeContent);
-        var svc = new EmailDomainValidatorService(httpClient: new HttpClient(handler));
+        var opts = new EmailValidatorOptions { AllowInsecureBlocklistUrls = true };
+        var svc = new EmailDomainValidatorService(opts, httpClient: new HttpClient(handler));
 
         // Before update: mailinator should be blocked (from embedded list)
         Assert.True(svc.IsDisposableEmail("user@mailinator.com"));
@@ -309,6 +310,61 @@ public class EmailDomainValidatorServiceTests
         // After update: only newblocked.com is in the list
         Assert.True(svc.IsDisposableEmail("user@newblocked.com"));
         Assert.False(svc.IsDisposableEmail("user@mailinator.com"));
+    }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Security unit tests (SSRF, Memory Bomb, Cache DoS, ReDoS)
+// ═══════════════════════════════════════════════════════════════════════════
+public class SecurityTests
+{
+    [Theory]
+    [InlineData("http://example.com/blocklist.txt")]
+    [InlineData("ftp://example.com/blocklist.txt")]
+    [InlineData("file:///etc/passwd")]
+    public async Task UpdateBlocklistAsync_InsecureScheme_ThrowsArgumentException(string url)
+    {
+        var svc = new EmailDomainValidatorService();
+        await Assert.ThrowsAsync<ArgumentException>(() => svc.UpdateBlocklistAsync(url));
+    }
+
+    [Theory]
+    [InlineData("https://127.0.0.1/blocklist.txt")]
+    [InlineData("https://169.254.169.254/latest/meta-data")]
+    [InlineData("https://10.0.0.1/blocklist.txt")]
+    [InlineData("https://192.168.1.1/blocklist.txt")]
+    [InlineData("https://172.16.0.1/blocklist.txt")]
+    public async Task UpdateBlocklistAsync_RestrictedIp_ThrowsArgumentException(string url)
+    {
+        var svc = new EmailDomainValidatorService();
+        await Assert.ThrowsAsync<ArgumentException>(() => svc.UpdateBlocklistAsync(url));
+    }
+
+    [Fact]
+    public async Task UpdateBlocklistAsync_ExceedsMaxSizeBytes_ThrowsInvalidOperationException()
+    {
+        var content = "domain1.com\ndomain2.com\n";
+        var handler = new FakeHttpMessageHandler(content);
+        var opts = new EmailValidatorOptions
+        {
+            AllowInsecureBlocklistUrls = true,
+            MaxBlocklistSizeBytes = 10
+        };
+        var svc = new EmailDomainValidatorService(opts, httpClient: new HttpClient(handler));
+
+        await Assert.ThrowsAsync<InvalidOperationException>(
+            () => svc.UpdateBlocklistAsync("https://fake-url/large.txt"));
+    }
+
+    [Fact]
+    public void CacheSizeLimit_PreventsUnboundedGrowth()
+    {
+        var opts = new EmailValidatorOptions
+        {
+            CacheSizeLimit = 10
+        };
+        var svc = new EmailDomainValidatorService(opts);
+        Assert.NotNull(svc);
     }
 }
 

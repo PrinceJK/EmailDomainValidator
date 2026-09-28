@@ -110,7 +110,11 @@ result.ToString()     // "Valid" or "Invalid: DisposableDomain"
 new EmailValidatorOptions
 {
     CacheTtl = TimeSpan.FromHours(1),            // how long MX results are cached
+    CacheSizeLimit = 50_000,                     // max cache entries to prevent memory exhaustion (Cache DoS)
+    DnsTimeout = TimeSpan.FromSeconds(3),        // DNS query timeout to mitigate threadpool starvation
     BlocklistUpdateUrl = null,                   // optional URL for runtime blocklist refresh
+    MaxBlocklistSizeBytes = 10 * 1024 * 1024,    // max download size (10 MB) to prevent memory bombs
+    AllowInsecureBlocklistUrls = false,          // SSRF protection (enforces HTTPS and blocks private/metadata IPs)
     BlockDisposableSubdomains = true,            // block subdomains of disposable domains (e.g. sub.mailinator.com)
     AllowAddressRecordFallback = false,          // fallback to A/AAAA records if no MX records exist (RFC 5321 §5.1)
     RejectNullMx = false                         // reject RFC 7505 Null MX records (preference 0, exchange ".")
