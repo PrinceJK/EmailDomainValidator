@@ -1,4 +1,4 @@
-﻿# EmailDomainValidator
+# EmailDomainValidator
 
 A lightweight, free .NET library for validating email addresses — checking format, detecting disposable domains, and verifying real MX records.
 
@@ -109,8 +109,11 @@ result.ToString()     // "Valid" or "Invalid: DisposableDomain"
 ```csharp
 new EmailValidatorOptions
 {
-    CacheTtl = TimeSpan.FromHours(1),   // how long MX results are cached
-    BlocklistUpdateUrl = null            // optional URL for runtime blocklist refresh
+    CacheTtl = TimeSpan.FromHours(1),            // how long MX results are cached
+    BlocklistUpdateUrl = null,                   // optional URL for runtime blocklist refresh
+    BlockDisposableSubdomains = true,            // block subdomains of disposable domains (e.g. sub.mailinator.com)
+    AllowAddressRecordFallback = false,          // fallback to A/AAAA records if no MX records exist (RFC 5321 §5.1)
+    RejectNullMx = false                         // reject RFC 7505 Null MX records (preference 0, exchange ".")
 }
 ```
 

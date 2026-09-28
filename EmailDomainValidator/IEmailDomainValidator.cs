@@ -12,19 +12,19 @@ namespace EmailDomainValidator
         bool HasValidMxRecords(string email);
 
         /// <summary>Checks whether the email domain has resolvable MX records (async).</summary>
-        Task<bool> HasValidMxRecordsAsync(string email);
+        Task<bool> HasValidMxRecordsAsync(string email, CancellationToken cancellationToken = default);
 
         /// <summary>Runs all validation checks synchronously.</summary>
         bool ValidateEmail(string email);
 
         /// <summary>Runs all validation checks asynchronously.</summary>
-        Task<bool> ValidateEmailAsync(string email);
+        Task<bool> ValidateEmailAsync(string email, CancellationToken cancellationToken = default);
 
         /// <summary>Runs all validation checks synchronously and returns a detailed result.</summary>
         ValidationResult ValidateEmailWithResult(string email);
 
         /// <summary>Runs all validation checks asynchronously and returns a detailed result.</summary>
-        Task<ValidationResult> ValidateEmailWithResultAsync(string email);
+        Task<ValidationResult> ValidateEmailWithResultAsync(string email, CancellationToken cancellationToken = default);
 
         /// <summary>Fetches a fresh blocklist from <paramref name="url"/> and replaces the in-memory set.</summary>
         Task UpdateBlocklistAsync(string url, CancellationToken cancellationToken = default);

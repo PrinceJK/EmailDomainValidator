@@ -24,7 +24,8 @@ namespace EmailDomainValidator
                 new EmailDomainValidatorService(
                     options: sp.GetRequiredService<EmailValidatorOptions>(),
                     cache: sp.GetRequiredService<Microsoft.Extensions.Caching.Memory.IMemoryCache>(),
-                    httpClient: sp.GetRequiredService<IHttpClientFactory>().CreateClient()));
+                    dnsClient: sp.GetService<DnsClient.ILookupClient>(),
+                    httpClient: sp.GetRequiredService<IHttpClientFactory>().CreateClient("EmailDomainValidator")));
             return services;
         }
 

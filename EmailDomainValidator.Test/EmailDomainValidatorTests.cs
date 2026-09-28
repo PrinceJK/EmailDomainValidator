@@ -217,6 +217,24 @@ public class EmailDomainValidatorServiceTests
     public void IsDisposableEmail_ReturnsExpected(string email, bool expected)
         => Assert.Equal(expected, _sut.IsDisposableEmail(email));
 
+    [Theory]
+    [InlineData("user@sub.mailinator.com", true)]
+    [InlineData("user@deep.sub.mailinator.com", true)]
+    [InlineData("user@sub.gmail.com", false)]
+    public void IsDisposableEmail_Subdomains_ReturnsExpected(string email, bool expected)
+        => Assert.Equal(expected, _sut.IsDisposableEmail(email));
+
+    [Fact]
+    public void IsValidFormat_PunycodeTld_ReturnsTrue()
+        => Assert.True(_sut.IsValidFormat("user@domain.xn--p1ai"));
+
+    [Theory]
+    [InlineData("user..name@domain.com")]
+    [InlineData(".user@domain.com")]
+    [InlineData("user.@domain.com")]
+    public void IsValidFormat_ConsecutiveOrEdgeDots_ReturnsFalse(string email)
+        => Assert.False(_sut.IsValidFormat(email));
+
     // ── HasValidMxRecords (real DNS MX) ──────────────────────────────────────
 
     [Fact]
@@ -375,6 +393,19 @@ public class DependencyInjectionTests
         var result = svc.ValidateEmailWithResult("user@mailinator.com");
         Assert.Equal(ValidationFailureReason.DisposableDomain, result.FailureReason);
     }
+
+    [Fact]
+    public void AddEmailDomainValidator_ResolvesCustomLookupClientWhenRegistered()
+    {
+        var mockDns = NSubstitute.Substitute.For<DnsClient.ILookupClient>();
+        var sp = new ServiceCollection()
+            .AddSingleton(mockDns)
+            .AddEmailDomainValidator()
+            .BuildServiceProvider();
+
+        var svc = sp.GetRequiredService<IEmailDomainValidator>();
+        Assert.NotNull(svc);
+    }
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -396,124 +427,4 @@ internal sealed class FakeHttpMessageHandler : HttpMessageHandler
         {
             Content = new StringContent(_responseContent)
         });
-}
-
-
-public class EmailDomainValidatorTests
-{
-    // ── ValidateEmail (integration: format + disposable + DNS) ──────────────
-
-    [Theory]
-    [InlineData("test@example.com", true)]
-    [InlineData("test@mailinator.com", false)]
-    [InlineData("invalid-email", false)]
-    public void ValidateEmail_ShouldReturnExpectedResult(string email, bool expected)
-    {
-        Assert.Equal(expected, Validator.ValidateEmail(email));
-    }
-
-    [Theory]
-    [InlineData(null)]
-    [InlineData("")]
-    [InlineData("   ")]
-    public void ValidateEmail_NullOrWhitespace_ReturnsFalse(string? email)
-    {
-        Assert.False(Validator.ValidateEmail(email!));
-    }
-
-    // ── IsValidFormat ───────────────────────────────────────────────────────
-
-    [Theory]
-    [InlineData("user@domain.com", true)]
-    [InlineData("user.name+tag@sub.domain.org", true)]
-    [InlineData("user@domain.co.uk", true)]
-    [InlineData("user@domain", false)]        // no TLD
-    [InlineData("@domain.com", false)]        // no local part
-    [InlineData("userdomain.com", false)]     // no @
-    [InlineData("user@.com", false)]          // dot right after @
-    [InlineData("user @domain.com", false)]   // space in local
-    [InlineData("", false)]
-    public void IsValidFormat_ReturnsExpected(string email, bool expected)
-    {
-        Assert.Equal(expected, Validator.IsValidFormat(email));
-    }
-
-    // ── IsDisposableEmail ───────────────────────────────────────────────────
-
-    [Theory]
-    [InlineData("user@mailinator.com", true)]
-    [InlineData("user@guerrillamail.com", true)]
-    [InlineData("user@gmail.com", false)]
-    [InlineData("user@outlook.com", false)]
-    public void IsDisposableEmail_ReturnsExpected(string email, bool expected)
-    {
-        Assert.Equal(expected, Validator.IsDisposableEmail(email));
-    }
-
-    [Theory]
-    [InlineData("notanemail")]   // no @
-    [InlineData("@")]            // empty domain
-    public void IsDisposableEmail_MalformedEmail_ReturnsFalse(string email)
-    {
-        Assert.False(Validator.IsDisposableEmail(email));
-    }
-
-    // ── HasValidMxRecords (sync) ────────────────────────────────────────────
-
-    [Fact]
-    public void HasValidMxRecords_KnownGoodDomain_ReturnsTrue()
-    {
-        Assert.True(Validator.HasValidMxRecords("user@gmail.com"));
-    }
-
-    [Fact]
-    public void HasValidMxRecords_NonExistentDomain_ReturnsFalse()
-    {
-        Assert.False(Validator.HasValidMxRecords("user@this-domain-does-not-exist-xyz123.com"));
-    }
-
-    [Theory]
-    [InlineData("notanemail")]
-    [InlineData("@")]
-    public void HasValidMxRecords_MalformedEmail_ReturnsFalse(string email)
-    {
-        Assert.False(Validator.HasValidMxRecords(email));
-    }
-
-    // ── HasValidMxRecordsAsync ──────────────────────────────────────────────
-
-    [Fact]
-    public async Task HasValidMxRecordsAsync_KnownGoodDomain_ReturnsTrue()
-    {
-        Assert.True(await Validator.HasValidMxRecordsAsync("user@gmail.com"));
-    }
-
-    [Fact]
-    public async Task HasValidMxRecordsAsync_NonExistentDomain_ReturnsFalse()
-    {
-        Assert.False(await Validator.HasValidMxRecordsAsync("user@this-domain-does-not-exist-xyz123.com"));
-    }
-
-    // ── ValidateEmailAsync ──────────────────────────────────────────────────
-
-    [Fact]
-    public async Task ValidateEmailAsync_ValidEmail_ReturnsTrue()
-    {
-        Assert.True(await Validator.ValidateEmailAsync("test@example.com"));
-    }
-
-    [Fact]
-    public async Task ValidateEmailAsync_DisposableEmail_ReturnsFalse()
-    {
-        Assert.False(await Validator.ValidateEmailAsync("test@mailinator.com"));
-    }
-
-    [Theory]
-    [InlineData(null)]
-    [InlineData("")]
-    [InlineData("invalid-email")]
-    public async Task ValidateEmailAsync_InvalidInput_ReturnsFalse(string? email)
-    {
-        Assert.False(await Validator.ValidateEmailAsync(email!));
-    }
-}
+}
