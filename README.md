@@ -1,20 +1,12 @@
-<p align="center">
-  <img src="EmailDomainValidator/icon.png" width="100" alt="EmailDomainValidator Logo" />
-</p>
-
 # EmailDomainValidator
 
-<p align="center">
-  <strong>A high-performance, RFC-compliant .NET library for complete email validation: syntax, disposable provider detection, typo suggestions, B2B corporate filters, DataAnnotation attributes, and real DNS MX record verification.</strong>
-</p>
+**A high-performance, RFC-compliant .NET library for complete email validation: syntax, disposable provider detection, typo suggestions, B2B corporate filters, DataAnnotation attributes, and real DNS MX record verification.**
 
-<p align="center">
-  <a href="https://www.nuget.org/packages/EmailDomainValidator"><img src="https://img.shields.io/nuget/v/EmailDomainValidator.svg?style=flat-square&color=blue" alt="NuGet Version" /></a>
-  <a href="https://www.nuget.org/packages/EmailDomainValidator"><img src="https://img.shields.io/nuget/dt/EmailDomainValidator.svg?style=flat-square" alt="NuGet Downloads" /></a>
-  <a href="https://dotnet.microsoft.com/"><img src="https://img.shields.io/badge/.NET-8.0%20%7C%2010.0-512bd4.svg?style=flat-square" alt=".NET Supported Versions" /></a>
-  <a href="LICENSE.txt"><img src="https://img.shields.io/badge/License-MIT-green.svg?style=flat-square" alt="License: MIT" /></a>
-  <a href="https://github.com/PrinceJK/EmailDomainValidator/actions"><img src="https://img.shields.io/github/actions/workflow/status/PrinceJK/EmailDomainValidator/publish-nuget.yml?branch=master&style=flat-square" alt="Build Status" /></a>
-</p>
+[![NuGet Version](https://img.shields.io/nuget/v/EmailDomainValidator.svg?style=flat-square&color=blue)](https://www.nuget.org/packages/EmailDomainValidator)
+[![NuGet Downloads](https://img.shields.io/nuget/dt/EmailDomainValidator.svg?style=flat-square)](https://www.nuget.org/packages/EmailDomainValidator)
+[![.NET Supported Versions](https://img.shields.io/badge/.NET-8.0%20%7C%2010.0-512bd4.svg?style=flat-square)](https://dotnet.microsoft.com/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg?style=flat-square)](LICENSE.txt)
+[![Build Status](https://img.shields.io/github/actions/workflow/status/PrinceJK/EmailDomainValidator/publish-nuget.yml?branch=master&style=flat-square)](https://github.com/PrinceJK/EmailDomainValidator/actions)
 
 ---
 
